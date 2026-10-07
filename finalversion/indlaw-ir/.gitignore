@@ -1,0 +1,15 @@
+__pycache__/
+.venv/
+.pytest_cache/
+.ruff_cache/
+*.pyc
+app/frontend/node_modules/
+app/frontend/dist/
+app/frontend/tsconfig.tsbuildinfo
+
+data/raw/*
+data/processed/*
+data/indexes/*
+data/evaluation/*
+models/*
+results/*
