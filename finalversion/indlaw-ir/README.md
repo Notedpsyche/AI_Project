@@ -2,7 +2,7 @@
 
 Local, closed-domain, context-aware conversational retrieval over Doc2Dial v1.0.1. The application combines BM25 lexical search with BAAI/bge-base-en-v1.5 semantic retrieval, fuses candidates with Reciprocal Rank Fusion, and answers only from displayed evidence.
 
-Source dataset: `C:\Users\Saivarad KG\Downloads\archive`
+Source dataset: `data/raw/doc2dial` (Doc2Dial v1.0.1)
 
 The original Streamlit prototype remains available for debugging, but the documented application is React + FastAPI. No external API, cloud LLM, fine-tuning, or black-box reranker is used.
 
