@@ -100,10 +100,10 @@ The existing selector in `backend/services/evidence_selector.py` still preserves
 
 Repository: [Notedpsyche/AI_Project](https://github.com/Notedpsyche/AI_Project)
 
-The project is at the repository root under `indlaw-ir/`.
+The project is at the repository root under `iitkasst/`.
 
 ```text
-indlaw-ir/
+iitkasst/
 ├── app/                 React frontend and Streamlit prototype
 ├── backend/             FastAPI backend and services
 ├── configs/             Retrieval configuration
@@ -131,7 +131,7 @@ The configured semantic model is `BAAI/bge-base-en-v1.5`.
 
 ```powershell
 git clone https://github.com/Notedpsyche/AI_Project.git
-cd AI_Project\indlaw-ir
+cd AI_Project\iitkasst
 uv sync
 ```
 
@@ -167,7 +167,7 @@ The retrieval paths and settings are configured in `configs/config.yaml`.
 
 ## 9. Run the backend
 
-From `AI_Project\indlaw-ir`:
+From `AI_Project\iitkasst`:
 
 ```powershell
 uv run uvicorn backend.main:app --reload
@@ -190,7 +190,7 @@ POST /api/chat
 Open a second terminal:
 
 ```powershell
-cd AI_Project\indlaw-ir\app\frontend
+cd AI_Project\iitkasst\app\frontend
 npm run dev
 ```
 

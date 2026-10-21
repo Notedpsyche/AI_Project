@@ -1,7 +1,7 @@
 # IIIT Kottayam Assistant — Incorrect-Answer Diagnosis and Fix Report
 
 Date: 9 October 2026  
-Project: `indlaw-ir` (IIIT Kottayam Applicant Assistant)  
+Project: `iitkasst` (IIIT Kottayam Applicant Assistant)
 Corpus at verification: 98 local chunks from 10 allowlisted official sources  
 Corpus SHA-256: `d8165bb665a8fa3274b9be99f5bff54aa6bc97fdd8a4327c96e18622a865aa12`
 

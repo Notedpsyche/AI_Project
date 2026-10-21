@@ -17,10 +17,10 @@ Optional: an NVIDIA GPU can make BGE embedding/index creation faster. CPU works 
 
 ```powershell
 git clone https://github.com/Notedpsyche/AI_Project.git
-cd AI_Project\indlaw-ir
+cd AI_Project\iitkasst
 ```
 
-All commands below must be run from the `indlaw-ir` directory unless another directory is explicitly shown.
+All commands below must be run from the `iitkasst` directory unless another directory is explicitly shown.
 
 ## 3. Install Python dependencies
 
@@ -45,7 +45,7 @@ If a source URL changes or you edit the source allowlist, repeat both commands.
 
 ## 5. Start the backend
 
-Open a PowerShell terminal in `indlaw-ir`:
+Open a PowerShell terminal in `iitkasst`:
 
 ```powershell
 uv run uvicorn backend.main:app --reload --host 127.0.0.1 --port 8000
@@ -64,7 +64,7 @@ Expected result: a JSON object with `status: "ok"`.
 Open a second PowerShell terminal:
 
 ```powershell
-cd AI_Project\indlaw-ir\app\frontend
+cd AI_Project\iitkasst\app\frontend
 npm ci
 npm run dev
 ```
@@ -84,7 +84,7 @@ The assistant is extractive: it should cite official evidence rather than invent
 
 ## 8. Run checks
 
-From `indlaw-ir`:
+From `iitkasst`:
 
 ```powershell
 uv run pytest -q
@@ -105,7 +105,7 @@ npm run build
 
 ### Backend says indexes are missing
 
-Run these commands from `indlaw-ir`:
+Run these commands from `iitkasst`:
 
 ```powershell
 uv run python src/prepare_college.py all

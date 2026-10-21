@@ -6,7 +6,7 @@ This is an **independent academic prototype, not an official institute service**
 
 ## Clean setup (Windows PowerShell)
 
-Install [uv](https://docs.astral.sh/uv/getting-started/installation/) and Node.js. From the `indlaw-ir` directory:
+Install [uv](https://docs.astral.sh/uv/getting-started/installation/) and Node.js. From the `iitkasst` directory:
 
 ```powershell
 uv sync

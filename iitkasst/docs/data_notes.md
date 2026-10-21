@@ -1,6 +1,6 @@
 # Dataset Notes
 
-Source: `C:\Users\Saivarad KG\Documents\AI project\finalversion\indlaw-ir\data\raw\doc2dial`
+Historical source path: `C:\Users\Saivarad KG\Documents\AI project\finalversion\iitkasst\data\raw\doc2dial`
 
 JSON files: **4**
 

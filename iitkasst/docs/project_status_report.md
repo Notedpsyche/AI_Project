@@ -1,7 +1,7 @@
 # Doc2Dial Retrieval Project Status Report
 
 **Date:** 2026-10-07  
-**Project root:** `C:\Users\Saivarad KG\Documents\AI project\finalversion\indlaw-ir`
+**Project root (at time of this update):** `C:\Users\Saivarad KG\Documents\AI project\iitkasst`
 
 ## Executive Summary
 

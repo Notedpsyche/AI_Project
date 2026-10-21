@@ -1,7 +1,7 @@
 # IIIT Kottayam Applicant Assistant — Implementation Progress Report
 
 **Report date:** 9 October 2026  
-**Project:** `indlaw-ir`  
+**Project:** `iitkasst`
 **Status:** Local application and pilot-regression fixes implemented; human relevance annotation, held-out evaluation, and reranker training are still pending.  
 **Important:** The 20/20 pilot smoke result is a functional regression result, not an accuracy benchmark.
 
@@ -142,7 +142,7 @@ Until that review is completed, the correct project description is: **working lo
 
 ## 10. Useful commands
 
-From `C:\Users\Saivarad KG\Documents\AI project\indlaw-ir`:
+From `C:\Users\Saivarad KG\Documents\AI project\iitkasst`:
 
 ```powershell
 uv sync

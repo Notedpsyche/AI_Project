@@ -1,7 +1,7 @@
 # IIIT Kottayam AI Assistant — Independent Quality Audit
 
 Audit date: 9 October 2026  
-Repository: `indlaw-ir`  
+Repository directory: `iitkasst`
 Evaluation status: **agent-authored and agent-verified; not independently human-validated**  
 Production changes during audit: **none**
 
