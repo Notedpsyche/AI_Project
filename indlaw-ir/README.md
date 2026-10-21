@@ -1,44 +1,51 @@
-# Doc2Dial AI — Hybrid Retrieval Demonstrator
+# IIIT Kottayam Applicant Assistant
 
-Local, closed-domain, context-aware conversational retrieval over Doc2Dial v1.0.1. The application combines BM25 lexical search with BAAI/bge-base-en-v1.5 semantic retrieval, fuses candidates with Reciprocal Rank Fusion, and answers only from displayed evidence.
+A local, source-grounded applicant assistant for public IIIT Kottayam admissions, B.Tech programmes, fees, and scholarships. It reuses the project's BM25 + BGE-base + FAISS + reciprocal-rank-fusion retrieval engine. Answers are short extracts from displayed official evidence, not generated claims. Missing, wrong-year, or unsupported evidence should result in abstention.
 
-Source dataset: `data/raw/doc2dial` (Doc2Dial v1.0.1)
+This is an **independent academic prototype, not an official institute service**. Verify consequential dates, requirements, and payments on the linked official source. The local corpus is curated and incomplete.
 
-The original Streamlit prototype remains available for debugging, but the documented application is React + FastAPI. No external API, cloud LLM, fine-tuning, or black-box reranker is used.
+## Clean setup (Windows PowerShell)
 
-The semantic refusal threshold remains `0.67`, chosen by the existing validation work. The indexed corpus contains 14,738 chunks and the BGE-base index has 768-dimensional normalized vectors.
-
-## Run locally
-
-From `indlaw-ir`:
+Install [uv](https://docs.astral.sh/uv/getting-started/installation/) and Node.js. From the `indlaw-ir` directory:
 
 ```powershell
 uv sync
+uv run python src/prepare_college.py all
+uv run python src/index.py
 uv run uvicorn backend.main:app --reload
 ```
 
-In another terminal:
+In a second terminal:
 
 ```powershell
 cd app\frontend
-npm install
+npm ci
 npm run dev
 ```
 
-Open `http://localhost:5173`. The backend health check is available at `http://localhost:8000/api/health`; retrieval-only debugging is available through `POST /api/search` and chat through `POST /api/chat`.
+Open `http://localhost:5173`. The API is at `http://localhost:8000/api`. First use downloads the pretrained BGE model. Index building uses CUDA when available, otherwise CPU. If indexes are absent, backend startup reports the exact preparation commands instead of silently using Doc2Dial data.
 
-## Architecture
+Only 10 explicitly listed official URLs in `configs/college_sources.json` are collected, with a 0.5-second delay between requests. The site currently exposes no populated sitemap for these pages, so the collector does not crawl arbitrary links. Inspect and update the allowlist and institute access rules before expanding coverage. Source content, prepared chunks, indexes, trained models, judgments, and results are ignored by Git; **do not commit downloaded pages/PDFs** without permission. The collector records URL, document type, programme, admission year, fetch time, content hash, and derived section/table-row IDs.
 
-React → FastAPI → bounded context query → BM25 + BGE-base → RRF → distinct evidence selection → confidence/refusal → deterministic grounded answer → sources and scores.
+## API
 
-The post-RRF selector uses configurable semantic, BM25, RRF, source/domain, intent, quality, and redundancy signals. It applies diversity-aware greedy selection with a default of three evidence items and logs both the RRF candidate preview and final selection.
+- `GET /api/health`: model and device status.
+- `POST /api/search` with `{"query":"..."}`: retrieval-only evidence view.
+- `POST /api/chat` with `{"message":"...","conversation":[{"role":"user","content":"..."}]}`: extractive answer and ranked sources.
 
-## Demo queries
+Evidence includes `source_url`, `programme`, `admission_year`, `retrieved_at`, `document_type`, and retrieval diagnostics. The client holds the conversation and sends bounded recent turns to the backend. New programme/year scopes do not inherit the preceding query. No uncalibrated absolute cosine threshold is used to decide whether to answer.
 
-- `How do I change my address with Social Security?`
-- Follow up with `Can I do it online?` to show context-aware retrieval.
-- `What should I do if I need to report a complaint?`
-- `What is the capital of France?` to demonstrate closed-domain refusal.
+## Evaluation and required training experiment
+
+`evaluation/question_bank.jsonl` contains **20 unjudged pilot prompts**, not ground truth. Follow `evaluation/annotation_guide.md` to create ignored local `evaluation/judgments.jsonl` after checking the official sources and passage IDs. The intended final set is approximately 60 train / 20 development / 20 untouched test questions. Do not claim the 16/20 answer-quality target until those answers are independently reviewed.
+
+```powershell
+uv run python src/annotation_candidates.py
+uv run python src/evaluate_college.py
+uv run python src/train_reranker.py
+```
+
+Evaluation reports equal-cutoff BM25, dense, and hybrid Recall@5, MRR@10, nDCG@10, per-query rankings, and warmed retrieval latency. Training learns a small logistic relevance reranker from **human-labeled** positive passages and hard negatives. It saves a candidate artifact with `deploy: false`. Deploy only after held-out ranking and answer-safety review; otherwise the application continues to use RRF. Without a reviewed judgment file, evaluation/training intentionally stop with an explanatory error.
 
 ## Validation
 
@@ -48,3 +55,5 @@ uv run ruff check .
 cd app\frontend
 npm run build
 ```
+
+The old Doc2Dial-specific modules and tests remain in the repository as historical material. Earlier Doc2Dial metrics are **not** evidence that this college assistant meets its targets; the old 200-turn evaluation sampled DMV only and has other comparison limitations.

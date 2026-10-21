@@ -4,11 +4,13 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
+import re
 from pathlib import Path
 from typing import Any
 
 import numpy as np
-import torch
 import yaml
 
 from .retrieval import BM25Store, DenseStore, SearchResult, hybrid
@@ -19,6 +21,10 @@ class SearchEngine:
         config = yaml.safe_load((root / config_path).read_text(encoding="utf-8"))
         self.config = config
         self.root = root
+        required = [config["paths"][key] for key in ("bm25_index", "bm25_metadata", "faiss_index", "faiss_metadata", "embeddings")]
+        missing = [str(root / path) for path in required if not (root / path).exists()]
+        if missing:
+            raise FileNotFoundError("College indexes are missing. Run 'uv run python src/prepare_college.py all' then 'uv run python src/index.py'. Missing: " + ", ".join(missing))
         self.bm25 = BM25Store.load(
             root / config["paths"]["bm25_index"], root / config["paths"]["bm25_metadata"]
         )
@@ -29,11 +35,23 @@ class SearchEngine:
         )
         self.by_id = {chunk.chunk_id: i for i, chunk in enumerate(self.dense.chunks)}
         self.embeddings = np.load(root / config["paths"]["embeddings"])
-        if torch.cuda.is_available() and self.dense.model.device.type != "cuda":
-            raise RuntimeError("Dense model did not load on CUDA.")
+        if self.embeddings.shape[0] != len(self.dense.chunks):
+            raise ValueError("Embedding/chunk count mismatch; rebuild college indexes")
+        if [chunk.chunk_id for chunk in self.bm25.chunks] != [chunk.chunk_id for chunk in self.dense.chunks]:
+            raise ValueError("BM25 and dense metadata differ; rebuild college indexes")
+        build_path = (root / config["paths"]["faiss_index"]).parent / "build.json"
+        chunk_path = root / config["paths"]["chunks"]
+        if not build_path.exists() or not chunk_path.exists():
+            raise FileNotFoundError("College build manifest or chunks are missing; rerun preparation and indexing")
+        build = json.loads(build_path.read_text(encoding="utf-8"))
+        if build["chunks_sha256"] != hashlib.sha256(chunk_path.read_bytes()).hexdigest() or build["model"] != config["model"]["name"]:
+            raise ValueError("College corpus/model changed since indexing; rebuild indexes")
 
     @staticmethod
     def build_query(query: str, history: list[dict[str, str]] | None, turns: int = 3) -> str:
+        # Normalize common conversational contractions before both BM25 and
+        # dense retrieval so punctuation does not suppress exact table rows.
+        query = re.sub(r"\bwhat['’]s\b", "what is", query, flags=re.I)
         if not history:
             return query
         recent = history[-turns:]

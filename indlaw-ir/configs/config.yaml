@@ -1,20 +1,20 @@
 seed: 42
 
 paths:
-  raw_dir: data/raw/doc2dial
+  raw_dir: data/raw/college
   chunks: data/processed/chunks.jsonl
-  faiss_index: indexes/faiss_bge_base/index.faiss
-  faiss_metadata: indexes/faiss_bge_base/metadata.json
-  embeddings: indexes/faiss_bge_base/embeddings.npy
-  bm25_index: indexes/bm25/index.pkl
-  bm25_metadata: indexes/bm25/metadata.json
+  faiss_index: indexes/college_bge_base/index.faiss
+  faiss_metadata: indexes/college_bge_base/metadata.json
+  embeddings: indexes/college_bge_base/embeddings.npy
+  bm25_index: indexes/college_bm25/index.pkl
+  bm25_metadata: indexes/college_bm25/metadata.json
 
 model:
   name: BAAI/bge-base-en-v1.5
 
 chunking:
-  target_tokens: 400
-  max_tokens: 512
+  target_tokens: 180
+  max_tokens: 300
 
 search:
   dense_top_k: 50
@@ -26,7 +26,8 @@ query:
   history_turns: 3
 
 retrieval:
-  semantic_threshold: 0.67
+  # No uncalibrated absolute cosine threshold is used for answers.
+  min_query_terms: 1
 
 evidence_selection:
   top_k: 3

@@ -13,12 +13,12 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(mess
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logging.info("Loading BGE-base, FAISS, and BM25 indexes")
+    logging.info("Loading college BGE-base, FAISS, and BM25 indexes")
     app.state.retrieval = RetrievalService(ROOT)
     yield
 
 
-app = FastAPI(title="Doc2Dial AI", version="1.0.0", lifespan=lifespan)
+app = FastAPI(title="IIIT Kottayam Applicant Assistant", version="0.2.0", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],

@@ -1,15 +1,18 @@
+# Institute content and derived artifacts are for local use only.
 __pycache__/
-.venv/
 .pytest_cache/
 .ruff_cache/
 *.pyc
+data/raw/
+data/processed/
+data/indexes/*
+data/evaluation/*
+indexes/
+models/*
+results/*
+evaluation/judgments*.jsonl
+evaluation/candidates.jsonl
+.venv/
 app/frontend/node_modules/
 app/frontend/dist/
 app/frontend/tsconfig.tsbuildinfo
-
-data/raw/*
-data/processed/*
-data/indexes/*
-data/evaluation/*
-models/*
-results/*

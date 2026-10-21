@@ -1,8 +1,13 @@
 faiss-cpu>=1.8
+fastapi>=0.115
+beautifulsoup4>=4.12
 numpy>=1.26
+pypdf>=5.0
 pyyaml>=6.0
 rank-bm25>=0.2
+scikit-learn>=1.5
 sentence-transformers>=3.0
 streamlit>=1.35
 torch>=2.2
 tqdm>=4.66
+uvicorn[standard]>=0.30

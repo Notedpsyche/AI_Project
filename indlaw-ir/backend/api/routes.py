@@ -1,11 +1,11 @@
+import re
 import time
 
 from fastapi import APIRouter, HTTPException, Request
 
 from backend.api.schemas import ChatRequest, ChatResponse, Evidence, SearchRequest
-from backend.config import MODEL_NAME, REFUSAL
-from backend.services.answer_service import extract_claims, grounded_answer
-from backend.services.intent_service import classify_intent
+from backend.config import MODEL_NAME
+from backend.services.college_answer import grounded_answer
 
 router = APIRouter(prefix="/api")
 
@@ -47,11 +47,9 @@ def chat(payload: ChatRequest, request: Request) -> ChatResponse:
         raise HTTPException(503, "The retrieval system is still loading.")
     started = time.perf_counter()
     result = service.search(payload.message, [item.model_dump() for item in payload.conversation])
-    answer, refused = grounded_answer(
-        result["answer_query"], result["results"], result["confidence"]
-    )
-    if refused:
-        answer = REFUSAL
+    answer, refused = grounded_answer(result["scope"], result["results"])
+    cited_ranks = {int(rank) for rank in re.findall(r"\[(\d+)\]", answer)}
+    cited_evidence = [item for item in result["results"] if item["rank"] in cited_ranks] if not refused else []
     response = ChatResponse(
         answer=answer,
         refused=refused,
@@ -63,17 +61,17 @@ def chat(payload: ChatRequest, request: Request) -> ChatResponse:
         context_decision=result["context_decision"],
         context_reason=result["context_reason"],
         confidence=result["confidence"],
-        evidence=_evidence(result["results"]),
+        evidence=_evidence(cited_evidence),
         debug={
             "current_query": payload.message,
             "context_decision": result["context_decision"],
             "context_score": result["context_score"],
             "context_reason": result["context_reason"],
-            "information_need": sorted(classify_intent(result["answer_query"]).task_groups),
-            "answer_type": classify_intent(result["answer_query"]).answer_type,
+            "programme": result["scope"].programme,
+            "admission_year": result["scope"].admission_year,
+            "intent": result["scope"].intent,
             "reformulated_query": result["query"],
-            "answer_claims": extract_claims(result["answer_query"], result["results"]),
-            "final_evidence": [item["title"] for item in result["results"]],
+            "final_evidence": [item["title"] for item in cited_evidence],
         },
     )
     request.app.state.last_latency_ms = round((time.perf_counter() - started) * 1000, 1)

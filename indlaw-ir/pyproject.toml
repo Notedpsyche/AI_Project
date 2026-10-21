@@ -1,14 +1,17 @@
 [project]
-name = "doc2dial-retrieval"
+name = "iiitk-applicant-assistant"
 version = "0.1.0"
-description = "Local Doc2Dial semantic retrieval prototype"
+description = "Local, source-grounded IIIT Kottayam applicant assistant"
 requires-python = ">=3.11"
 dependencies = [
     "faiss-cpu>=1.8",
     "fastapi>=0.115",
+    "beautifulsoup4>=4.12",
     "numpy>=1.26",
+    "pypdf>=5.0",
     "pyyaml>=6.0",
     "rank-bm25>=0.2",
+    "scikit-learn>=1.5",
     "sentence-transformers>=3.0",
     "streamlit>=1.35",
     "torch>=2.2",
@@ -29,6 +32,7 @@ target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "W", "UP"]
+ignore = ["E501"]
 
 [[tool.uv.index]]
 name = "pytorch-cu124"

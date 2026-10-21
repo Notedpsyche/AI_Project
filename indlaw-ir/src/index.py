@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 from pathlib import Path
 
@@ -26,16 +27,18 @@ def main() -> None:
     parser.add_argument("--skip-bm25", action="store_true")
     args = parser.parse_args()
     config = yaml.safe_load((ROOT / args.config).read_text(encoding="utf-8"))
-    if not torch.cuda.is_available():
-        raise RuntimeError("CUDA is required for BGE embedding generation on this machine.")
-    chunks = load_chunks(ROOT / "data/processed/chunks.jsonl")
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    chunk_path = ROOT / config["paths"]["chunks"]
+    if not chunk_path.exists():
+        raise FileNotFoundError(f"Missing local chunks: {chunk_path}. Run prepare_college.py all first.")
+    chunks = load_chunks(chunk_path)
     if not args.skip_bm25:
         bm25 = BM25Store(chunks)
         bm25.save(ROOT / config["paths"]["bm25_index"], ROOT / config["paths"]["bm25_metadata"])
-    model = SentenceTransformer(config["model"]["name"], device="cuda")
+    model = SentenceTransformer(config["model"]["name"], device=device)
     texts = [" ".join([*chunk.heading_path, chunk.text]) for chunk in chunks]
     embeddings = model.encode(
-        texts, batch_size=64, normalize_embeddings=True, convert_to_numpy=True, show_progress_bar=True
+        texts, batch_size=32 if device == "cuda" else 8, normalize_embeddings=True, convert_to_numpy=True, show_progress_bar=True
     ).astype("float32")
     index = faiss.IndexFlatIP(embeddings.shape[1])
     index.add(embeddings)
@@ -45,16 +48,21 @@ def main() -> None:
     faiss_path.parent.mkdir(parents=True, exist_ok=True)
     faiss.write_index(index, str(faiss_path))
     np.save(embeddings_path, embeddings)
+    metadata_path.parent.mkdir(parents=True, exist_ok=True)
     metadata_path.write_text(
         json.dumps([chunk.as_dict() for chunk in chunks], ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+    (faiss_path.parent / "build.json").write_text(
+        json.dumps({"chunks_sha256": hashlib.sha256(chunk_path.read_bytes()).hexdigest(), "model": config["model"]["name"], "dimensions": embeddings.shape[1]}, indent=2),
+        encoding="utf-8",
     )
     print(json.dumps({
         "chunks": len(chunks),
         "dimensions": embeddings.shape[1],
         "model": config["model"]["name"],
         "device": str(model.device),
-        "gpu": torch.cuda.get_device_name(0),
-        "batch_size": 64,
+        "gpu": torch.cuda.get_device_name(0) if device == "cuda" else None,
+        "batch_size": 32 if device == "cuda" else 8,
         "prefix": DENSE_PREFIX,
     }, indent=2))
 

@@ -1,0 +1,20 @@
+{"query_id":"q001","query":"How do I apply for B.Tech admission in 2026?","question_family":"admission-process"}
+{"query_id":"q002","query":"Is JEE Main used for B.Tech admission?","question_family":"admission-process"}
+{"query_id":"q003","query":"Where is the IIIT Kottayam admission data entry portal?","question_family":"admission-portal"}
+{"query_id":"q004","query":"What documents are required for 2026 admission verification?","question_family":"admission-documents"}
+{"query_id":"q005","query":"What is the first semester B.Tech tuition fee for 2026?","question_family":"btech-fees"}
+{"query_id":"q006","query":"How much is the hostel maintenance fee for the first semester in 2026?","question_family":"hostel-fees"}
+{"query_id":"q007","query":"Is a caution deposit charged in the first semester?","question_family":"btech-fees"}
+{"query_id":"q008","query":"Are 2025 payment instructions valid for 2026 admission?","question_family":"wrong-year"}
+{"query_id":"q009","query":"Does IIIT Kottayam directly provide scholarships?","question_family":"scholarship"}
+{"query_id":"q010","query":"Can students apply to state governments for scholarships?","question_family":"scholarship"}
+{"query_id":"q011","query":"Does the institute support scholarship applications with documents?","question_family":"scholarship"}
+{"query_id":"q012","query":"Is there a B.Tech programme in AI and Data Science?","question_family":"programmes"}
+{"query_id":"q013","query":"Does IIIT Kottayam offer B.Tech in Mathematics and Computing?","question_family":"programmes"}
+{"query_id":"q014","query":"What is the B.Tech CSE programme?","question_family":"programme-cse"}
+{"query_id":"q015","query":"What is the B.Tech ECE programme?","question_family":"programme-ece"}
+{"query_id":"q016","query":"Is Cyber Security a B.Tech specialization?","question_family":"programme-cyber"}
+{"query_id":"q017","query":"What is the deadline for 2030 admission?","question_family":"unanswerable-future"}
+{"query_id":"q018","query":"What is the fee for 2025 DASA admission?","question_family":"wrong-year"}
+{"query_id":"q019","query":"What will the 2028 placement rate be?","question_family":"unanswerable-future"}
+{"query_id":"q020","query":"Can I pay it online?","history":[{"role":"user","content":"What is the B.Tech first semester fee for 2026?"}],"question_family":"fee-followup"}

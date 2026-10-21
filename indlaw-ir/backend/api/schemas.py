@@ -39,6 +39,11 @@ class Evidence(BaseModel):
     redundancy_penalty: float | None = None
     final_evidence_score: float | None = None
     selection_reason: str | None = None
+    source_url: str = ""
+    programme: str = ""
+    admission_year: int | None = None
+    retrieved_at: str = ""
+    document_type: str = ""
 
 
 class ChatResponse(BaseModel):

@@ -8,7 +8,7 @@ from __future__ import annotations
 import ast
 import json
 import re
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -40,6 +40,14 @@ class Chunk:
     section_id: str
     text: str
     span_ids: list[str]
+    source_url: str = ""
+    programme: str = ""
+    admission_year: int | None = None
+    retrieved_at: str = ""
+    document_type: str = ""
+    source_sha256: str = ""
+    year_conflict: bool = False
+    topics: list[str] = field(default_factory=list)
 
     def as_dict(self) -> dict[str, Any]:
         return asdict(self)

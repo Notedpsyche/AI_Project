@@ -1,15 +1,111 @@
 import { useEffect, useState } from "react";
-import { BookOpen, ChevronDown, CircleHelp, Search, Send, ShieldCheck, Sparkles } from "lucide-react";
+import { ArrowUpRight, BookOpen, Search, Send, ShieldCheck } from "lucide-react";
+import "./styles.css";
 
-type Evidence = { rank:number; title:string; domain:string; section:string; text:string; doc_id:string; span_id:string; semantic_score?:number; semantic_rank?:number; bm25_score?:number; bm25_rank?:number; rrf_score?:number; domain_score?:number; intent_score?:number; intent_conflict_penalty?:number; evidence_quality_score?:number; redundancy_penalty?:number; final_evidence_score?:number; selection_reason?:string };
-type Message = { role:"user"|"assistant"; content:string; evidence?:Evidence[]; context?:boolean; refused?:boolean };
+type Evidence = {
+  rank: number;
+  title: string;
+  section: string;
+  text: string;
+  source_url: string;
+  programme: string;
+  admission_year: number | null;
+  retrieved_at: string;
+  document_type: string;
+  semantic_score?: number | null;
+  bm25_score?: number | null;
+  rrf_score?: number | null;
+  final_evidence_score?: number | null;
+  selection_reason?: string | null;
+};
+type Message = { role: "user" | "assistant"; content: string; evidence?: Evidence[]; context?: boolean; refused?: boolean };
+type Page = "chat" | "search" | "about";
 const API = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
-const domainNames: Record<string,string> = { ssa:"Social Security Administration", dmv:"Department of Motor Vehicles", va:"Veterans Affairs", studentaid:"Student Aid" };
+const examples = [
+  "How do I apply for B.Tech in 2026?",
+  "What is the first-semester B.Tech fee for 2026?",
+  "Does the institute provide scholarships directly?",
+];
 
-function EvidenceCard({item}:{item:Evidence}) { const [open,setOpen]=useState(false); const [expanded,setExpanded]=useState(false); const sentences=item.text.split(/(?<=[.!?])\s+/).filter(Boolean); const excerpt=sentences.slice(0,3).join(" "); const hasMore=sentences.length>3; return <article className="evidence"><div className="evidence-index">{String(item.rank).padStart(2,"0")}</div><div className="evidence-body"><div className="evidence-head"><div><strong>{domainNames[item.domain] || item.domain.toUpperCase()}</strong><span>{item.title} · {item.section}</span></div><button className="icon" aria-label={`Why was ${item.title} selected?`} aria-expanded={open} onClick={()=>setOpen(!open)}><ChevronDown size={18}/></button></div><p>{expanded||!hasMore?item.text:excerpt}</p>{hasMore&&<button className="more" onClick={()=>setExpanded(!expanded)}>{expanded?"Show less":"Show more"}</button>}<div className="scores"><span>Relevance {item.final_evidence_score?.toFixed(3) ?? "—"}</span><span>Semantic {item.semantic_score?.toFixed(3) ?? "—"}</span><span>BM25 {item.bm25_score?.toFixed(2) ?? "—"}</span><span>RRF {item.rrf_score?.toFixed(4) ?? "—"}</span></div>{open && <div className="details" role="region"><b>Why this evidence?</b><br/>{item.selection_reason || "Selected by hybrid relevance and diversity-aware ranking."}<br/><br/>Domain/source: {item.domain_score?.toFixed(3) ?? "—"} · Intent: {item.intent_score?.toFixed(3) ?? "—"}<br/>Intent conflict: {item.intent_conflict_penalty?.toFixed(3) ?? "—"} · Redundancy: {item.redundancy_penalty?.toFixed(3) ?? "—"} · Quality: {item.evidence_quality_score?.toFixed(3) ?? "—"}<br/>Semantic rank: {item.semantic_rank ?? "—"} · BM25 rank: {item.bm25_rank ?? "—"}<br/>Document ID: {item.doc_id}<br/>Span ID: {item.span_id}</div>}</div></article> }
+function EvidenceCard({ item }: { item: Evidence }) {
+  const [expanded, setExpanded] = useState(false);
+  const excerpt = item.text.length > 410 ? `${item.text.slice(0, 410)}…` : item.text;
+  return (
+    <article className="evidence-card">
+      <div className="evidence-top">
+        <span className="source-number">{String(item.rank).padStart(2, "0")}</span>
+        <span className="source-kind">{item.document_type.toUpperCase() || "SOURCE"}</span>
+        {item.admission_year && <span className="source-year">Admission {item.admission_year}</span>}
+      </div>
+      <h4>{item.title}</h4>
+      <p className="source-section">{item.section}{item.programme ? ` · ${item.programme}` : ""}</p>
+      <p className="source-text">{expanded ? item.text : excerpt}</p>
+      {item.text.length > 410 && <button className="plain-button" onClick={() => setExpanded(!expanded)} aria-expanded={expanded}>{expanded ? "Show less" : "Show full excerpt"}</button>}
+      <div className="source-footer">
+        <a href={item.source_url} target="_blank" rel="noopener noreferrer">Open official source <ArrowUpRight size={15} aria-hidden="true" /></a>
+        <span>Checked {item.retrieved_at ? new Date(item.retrieved_at).toLocaleDateString() : "locally"}</span>
+      </div>
+      <details className="score-details"><summary>Retrieval details</summary><p>{item.selection_reason || "Selected evidence"}</p><p>Semantic {item.semantic_score?.toFixed(3) ?? "—"} · BM25 {item.bm25_score?.toFixed(2) ?? "—"} · RRF {item.rrf_score?.toFixed(4) ?? "—"}</p></details>
+    </article>
+  );
+}
 
-export default function App() { const [messages,setMessages]=useState<Message[]>([]); const [input,setInput]=useState(""); const [loading,setLoading]=useState(false); const [healthy,setHealthy]=useState<boolean|null>(null); const [page,setPage]=useState<"chat"|"search"|"about">("chat"); const [searchResults,setSearchResults]=useState<Evidence[]>([]); const [error,setError]=useState("");
- useEffect(()=>{fetch(`${API}/health`).then(r=>setHealthy(r.ok)).catch(()=>setHealthy(false));},[]);
- async function ask() { if(!input.trim()||loading)return; const text=input.trim(); setInput(""); setError(""); setMessages(m=>[...m,{role:"user",content:text}]); setLoading(true); try { const conversation=messages.map(({role,content})=>({role,content})); const r=await fetch(`${API}/chat`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({message:text,conversation})}); if(!r.ok) throw new Error("The backend is unavailable or still loading."); const data=await r.json(); setMessages(m=>[...m,{role:"assistant",content:data.answer,evidence:data.evidence,context:data.context_used,refused:data.refused}]); } catch(e) { setError(e instanceof Error?e.message:"Request failed"); } finally {setLoading(false);} }
- async function runSearch() { if(!input.trim())return; setError(""); setLoading(true); try {const r=await fetch(`${API}/search`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({query:input})}); if(!r.ok)throw new Error("Search failed"); setSearchResults((await r.json()).results);}catch(e){setError(e instanceof Error?e.message:"Search failed");}finally{setLoading(false);} }
- return <div className="shell"><a className="skip-link" href="#main-content">Skip to content</a><header><div className="brand"><div className="brand-mark" aria-hidden="true"><Sparkles size={19}/></div><div><h1>Doc2Dial AI</h1><p>Context-aware closed-domain retrieval</p></div></div><div className="header-right"><span className={`status ${healthy===true?"ok":healthy===false?"bad":""}`} aria-live="polite"><span aria-hidden="true"/> {healthy===true?"Backend online":healthy===false?"Backend offline":"Checking backend"}</span><span className="badge">HYBRID SEARCH <small>BGE-base + BM25 + RRF</small></span></div></header><nav aria-label="Primary navigation"><button aria-pressed={page==="chat"} className={page==="chat"?"active":""} onClick={()=>setPage("chat")}><Sparkles size={16}/> Chat</button><button aria-pressed={page==="search"} className={page==="search"?"active":""} onClick={()=>setPage("search")}><Search size={16}/> Search</button><button aria-pressed={page==="about"} className={page==="about"?"active":""} onClick={()=>setPage("about")}><CircleHelp size={16}/> System</button></nav>{page==="chat"&&<main id="main-content" className="chat-page"><section className="intro"><span className="eyebrow"><ShieldCheck size={15}/> Grounded answers only</span><h2>Ask the Doc2Dial knowledge base.</h2><p>Search across official dialogue documents with semantic and lexical retrieval. Every answer shows its evidence.</p></section><section className="conversation" aria-live="polite">{messages.length===0&&<div className="empty"><BookOpen size={34}/><h3>Ready when you are</h3><p>Try “How do I change my address with Social Security?”</p></div>}{messages.map((m,i)=><div className={`message ${m.role}`} key={i}><div className="avatar" aria-hidden="true">{m.role==="user"?"You":"AI"}</div><div className="bubble"><div className="message-label">{m.role==="user"?"You":"Doc2Dial AI"}</div><p>{m.content}</p>{m.role==="assistant"&&<>{m.context&&<div className="context">Context-aware search · previous conversation used</div>}{m.evidence&&<div className="evidence-list"><h4>Supporting evidence</h4>{m.evidence.map((e,j)=><EvidenceCard item={e} key={j}/>)}</div>}</>}</div></div>)}{loading&&<div className="message assistant" role="status"><div className="avatar" aria-hidden="true">AI</div><div className="bubble typing">Retrieving evidence<span>.</span><span>.</span><span>.</span></div></div>}</section></main>}{page==="search"&&<main id="main-content" className="panel"><div className="panel-title"><Search size={22}/><div><h2>Retrieval explorer</h2><p>Inspect the hybrid candidates and their scores.</p></div></div><div className="searchbar"><label className="sr-only" htmlFor="search-query">Search the Doc2Dial corpus</label><input id="search-query" value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>e.key==="Enter"&&runSearch()} placeholder="Search the Doc2Dial corpus..."/><button onClick={runSearch}><Search size={17}/> Search</button></div>{searchResults.map((e,i)=><EvidenceCard item={e} key={i}/>)}</main>}{page==="about"&&<main id="main-content" className="panel about"><div className="panel-title"><BookOpen size={22}/><div><h2>System information</h2><p>A reproducible local information-retrieval demonstrator.</p></div></div><div className="facts">{[["Dataset","Doc2Dial v1.0.1"],["Chunks","14,738"],["Dense model","BAAI/bge-base-en-v1.5"],["Embedding dimension","768"],["Lexical retriever","BM25"],["Dense index","FAISS IndexFlatIP"],["Fusion","Reciprocal Rank Fusion"],["Device","CUDA when available"]].map(([a,b])=><div key={a}><span>{a}</span><b>{b}</b></div>)}</div></main>}<footer><div className="input-wrap"><label className="sr-only" htmlFor="chat-query">Ask the Doc2Dial knowledge base</label><input id="chat-query" value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>e.key==="Enter"&&page==="chat"&&ask()} placeholder={page==="chat"?"Ask something about Social Security, DMV, VA, or Student Aid...":"Enter a query..."}/><button onClick={page==="chat"?ask:runSearch} disabled={loading||!input.trim()}><Send size={17}/> Send</button></div>{error&&<div className="error" role="alert">{error}</div>}<small>Closed-domain system · No external APIs · Evidence is shown with every response</small></footer></div> }
+export default function App() {
+  const [page, setPage] = useState<Page>("chat");
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [input, setInput] = useState("");
+  const [results, setResults] = useState<Evidence[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [healthy, setHealthy] = useState<boolean | null>(null);
+  const [error, setError] = useState("");
+  useEffect(() => { fetch(`${API}/health`).then(r => setHealthy(r.ok)).catch(() => setHealthy(false)); }, []);
+
+  async function submit(text = input) {
+    const query = text.trim();
+    if (!query || loading) return;
+    setInput("");
+    setError("");
+    setLoading(true);
+    try {
+      if (page === "search") {
+        const response = await fetch(`${API}/search`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ query }) });
+        if (!response.ok) throw new Error("Search is unavailable. Check that the local indexes are built.");
+        const payload = await response.json();
+        setResults(payload.results);
+      } else {
+        const conversation = messages.map(({ role, content }) => ({ role, content }));
+        setMessages(m => [...m, { role: "user", content: query }]);
+        const response = await fetch(`${API}/chat`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message: query, conversation }) });
+        if (!response.ok) throw new Error("The assistant is unavailable. Check the backend terminal.");
+        const payload = await response.json();
+        setMessages(m => [...m, { role: "assistant", content: payload.answer, evidence: payload.evidence, context: payload.context_used, refused: payload.refused }]);
+      }
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Request failed.");
+    } finally { setLoading(false); }
+  }
+
+  return <div className="app-shell">
+    <a className="skip-link" href="#main-content">Skip to content</a>
+    <header className="topbar">
+      <div className="brand"><span className="brand-mark">II</span><span><strong>IIIT Kottayam</strong><small>Applicant assistant · local prototype</small></span></div>
+      <div className="topbar-right"><span className={`health ${healthy === true ? "online" : healthy === false ? "offline" : ""}`} aria-live="polite"><i />{healthy === true ? "Ready" : healthy === false ? "Offline" : "Connecting"}</span><span className="engine-tag">BM25 + BGE + RRF</span></div>
+    </header>
+    <div className="workspace">
+      <aside className="sidebar" aria-label="Workspace navigation">
+        <div className="sidebar-label">WORKSPACE</div>
+        <nav><button className={page === "chat" ? "active" : ""} aria-current={page === "chat" ? "page" : undefined} onClick={() => setPage("chat")}><BookOpen size={17} /> Ask a question</button><button className={page === "search" ? "active" : ""} aria-current={page === "search" ? "page" : undefined} onClick={() => setPage("search")}><Search size={17} /> Explore evidence</button><button className={page === "about" ? "active" : ""} aria-current={page === "about" ? "page" : undefined} onClick={() => setPage("about")}><ShieldCheck size={17} /> About this system</button></nav>
+        <div className="sidebar-note"><ShieldCheck size={18} /><p>Answers use a curated set of public official sources. Always verify dates and fees on the linked page before acting.</p></div>
+      </aside>
+      <main id="main-content" className="main-content">
+        {page === "chat" && <><div className="intro"><span className="eyebrow">OFFICIAL SOURCE RETRIEVAL</span><h1>Find the answer.<br /><em>See the source.</em></h1><p>Ask about B.Tech admissions, programmes, fees, and scholarships at IIIT Kottayam. If the available material does not support an answer, the assistant will say so.</p></div><div className="content-width">
+          {messages.length === 0 && <section className="example-area" aria-label="Example questions"><h2>Start with a question</h2><div className="examples">{examples.map(example => <button key={example} onClick={() => void submit(example)}>{example}<ArrowUpRight size={16} /></button>)}</div></section>}
+          <section className="messages" aria-live="polite">{messages.map((message, index) => <article className={`message ${message.role}`} key={index}><div className="message-byline">{message.role === "user" ? "YOU" : "ASSISTANT"}{message.context && <span>· Follow-up context used</span>}{message.refused && <span>· Not verified</span>}</div><p className="answer-copy">{message.content}</p>{message.role === "assistant" && message.evidence && message.evidence.length > 0 && <div className="source-list"><h3>Supporting sources</h3>{message.evidence.map((item, position) => <EvidenceCard key={`${index}-${position}`} item={item} />)}</div>}</article>)}{loading && <p className="loading" role="status">Checking official sources…</p>}</section>
+        </div></>}
+        {page === "search" && <div className="content-width section-page"><span className="eyebrow">RETRIEVAL EXPLORER</span><h1>Inspect the evidence</h1><p>Use the same curated index as the assistant. Scores are diagnostics, not a guarantee that an answer is correct.</p>{results.length > 0 ? <div className="source-list">{results.map((item, index) => <EvidenceCard key={index} item={item} />)}</div> : <div className="empty-panel">Run a search to inspect ranked official passages.</div>}</div>}
+        {page === "about" && <div className="content-width section-page"><span className="eyebrow">HOW IT WORKS</span><h1>Grounded by design</h1><p>This local academic prototype indexes a curated allowlist of public IIIT Kottayam pages and PDFs. BM25 and BGE-base retrieve candidate passages; reciprocal-rank fusion combines them. Source and year checks precede any extractive answer.</p><div className="about-grid"><div><strong>Sources</strong><span>Official IIIT Kottayam pages and PDFs, collected locally</span></div><div><strong>Coverage</strong><span>Applicant questions: admissions, B.Tech programmes, fees, scholarships</span></div><div><strong>Limits</strong><span>Not an official institute service. Missing or contradictory evidence should lead to abstention.</span></div><div><strong>Privacy</strong><span>Downloaded content and generated indexes stay on this computer.</span></div></div></div>}
+      </main>
+    </div>
+    {page !== "about" && <form className="composer" onSubmit={event => { event.preventDefault(); void submit(); }}><div className="composer-inner"><label htmlFor="question" className="sr-only">{page === "search" ? "Search official sources" : "Ask an applicant question"}</label><input id="question" value={input} onChange={event => setInput(event.target.value)} placeholder={page === "search" ? "Search official sources…" : "Ask about admissions, fees, eligibility…"} /><button disabled={loading || !input.trim()} aria-label={page === "search" ? "Search" : "Send question"} type="submit"><Send size={18} /></button></div>{error && <p className="error" role="alert">{error}</p>}<p>Local prototype · Verify important details with the institute</p></form>}
+  </div>;
+}
