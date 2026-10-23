@@ -101,6 +101,14 @@ def _task_claims(scope: QueryScope, evidence: list[dict]) -> list[tuple[int, str
                     selected = ranked[:1]
                 else:
                     overview = next((sentence for sentence in sentences if re.search(r"\b(programme|program|curriculum)\b", sentence, re.I)), None)
+                    if not overview:
+                        overview = next(
+                            (
+                                sentence for sentence in sentences
+                                if normalized_terms(scope.programme).intersection(normalized_terms(sentence))
+                            ),
+                            None,
+                        )
                     fields = next((
                         sentence for sentence in sentences
                         if sentence != overview and re.search(r"\b(spans across|prominent fields)\b", sentence, re.I)
@@ -118,6 +126,12 @@ def _task_claims(scope: QueryScope, evidence: list[dict]) -> list[tuple[int, str
                 selected = sentences[:1]
             else:
                 selected = [text]
+        elif intent == "programme_comparison":
+            sentences = _sentences(text)
+            overview = next((sentence for sentence in sentences if re.search(r"\b(programme|program|curriculum|focuses|spans)\b", sentence, re.I)), None)
+            if overview:
+                label = str(row.get("programme") or row.get("title") or "Programme")
+                selected = [f"{label}: {overview}"]
         elif intent == "scholarship_support":
             selected = _matching_sentences(row, (r"providing (?:all )?necessary documents", r"forwarding"))
         elif intent == "scholarship_authorities":
@@ -155,14 +169,14 @@ def grounded_answer(scope: QueryScope, evidence: list[dict]) -> tuple[str, bool]
         "class_commencement", "document_item", "fee_comparison", "fee_component", "fee_total",
         "first_year_housing", "hostel_items", "hostel_transport", "orientation", "portal_confirmation",
         "portal_steps", "programme_description", "programme_fields", "programmes_list", "reporting_schedule",
-        "scholarship_authorities", "scholarship_support",
+        "programme_comparison", "scholarship_authorities", "scholarship_support",
     }:
         if not task_claims:
             return REFUSAL, True
         years = {year for _, _, year in task_claims if year}
         if len(years) > 1 or (scope.admission_year and years and years != {scope.admission_year}):
             return REFUSAL, True
-        label = f"For {scope.programme}" if scope.programme else "According to the official sources"
+        label = f"For {', '.join(scope.programmes)}" if scope.programmes else (f"For {scope.programme}" if scope.programme else "According to the official sources")
         if scope.admission_year:
             label += f" (admission {scope.admission_year})"
         elif years and len(years) == len(task_claims):

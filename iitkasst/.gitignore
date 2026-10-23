@@ -12,6 +12,8 @@ models/*
 results/*
 evaluation/judgments*.jsonl
 evaluation/candidates.jsonl
+evaluation/wmd_runs/*
+!evaluation/wmd_runs/.gitkeep
 .venv/
 app/frontend/node_modules/
 app/frontend/dist/

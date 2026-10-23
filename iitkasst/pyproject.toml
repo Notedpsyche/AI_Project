@@ -17,6 +17,8 @@ dependencies = [
     "torch>=2.2",
     "tqdm>=4.66",
     "uvicorn[standard]>=0.30",
+    "transformers>=5.19,<6",
+    "pot==0.9.7",
 ]
 
 [dependency-groups]
@@ -25,6 +27,8 @@ dev = ["pytest>=8.0", "ruff>=0.6"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = [".", "src"]
+addopts = "-m 'not model'"
+markers = ["model: tests requiring the pinned local BERT artifact"]
 
 [tool.ruff]
 line-length = 100

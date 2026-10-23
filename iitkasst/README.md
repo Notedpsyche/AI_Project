@@ -47,10 +47,27 @@ uv run python src/train_reranker.py
 
 Evaluation reports equal-cutoff BM25, dense, and hybrid Recall@5, MRR@10, nDCG@10, per-query rankings, and warmed retrieval latency. Training learns a small logistic relevance reranker from **human-labeled** positive passages and hard negatives. It saves a candidate artifact with `deploy: false`. Deploy only after held-out ranking and answer-safety review; otherwise the application continues to use RRF. Without a reviewed judgment file, evaluation/training intentionally stop with an explanatory error.
 
+## Optional BERT + exact WMD experiment
+
+The web application continues to use BM25 + BGE-base + FAISS + RRF. The project also includes an isolated, disabled-by-default paper-style experiment: `google-bert/bert-base-uncased` word representations, a cached college vocabulary, and exact balanced optimal transport via POT. It reranks at most 15 **eligible RRF candidates**; it never changes API responses or falls back into the application.
+
+```powershell
+# Downloads the pinned BERT model on its first run and builds only the ignored WMD cache.
+uv run python src/build_wmd_cache.py --config configs/wmd_experiment.yaml
+
+# Shows BM25, BGE, RRF, centroid, exact-WMD, and rank-fused candidate orders.
+uv run python src/run_wmd_experiment.py --query "What B.Tech programmes are available?" --top 5
+
+# Requires every input case to have reviewed gold chunk IDs and relevance grades.
+uv run python src/evaluate_wmd.py --questions evaluation/wmd_immediate_questions.jsonl --config configs/wmd_experiment.yaml --output evaluation/wmd_runs/presentation
+```
+
+`evaluation/wmd_immediate_questions.jsonl` is deliberately marked `needs_human_review`, so the evaluation command stops rather than producing a misleading score. Add verified source chunk IDs, relevance grades, and `review_status: "reviewed"` in an ignored local copy before comparing systems. The experiment is not eligible for production use unless a held-out review shows ranking and final-answer improvement without safety or latency regressions.
+
 ## Validation
 
 ```powershell
-uv run pytest -q
+uv run python -m pytest -q
 uv run ruff check .
 cd app\frontend
 npm run build

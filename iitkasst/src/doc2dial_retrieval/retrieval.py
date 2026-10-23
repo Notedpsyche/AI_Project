@@ -41,7 +41,22 @@ def _normalized_evidence(result: SearchResult) -> str:
     return " ".join(re.findall(r"\w+", result.chunk.text.lower()))
 
 
+def _scope_signature(result: SearchResult) -> tuple[str, int | None, str, tuple[str, ...], bool]:
+    """Fields that make otherwise identical college evidence non-interchangeable."""
+    heading = " ".join(result.chunk.heading_path)
+    route = "DASA" if re.search(r"\bDASA\b", heading, re.I) else "JoSAA/CSAB" if re.search(r"\b(JoSAA|CSAB)\b", heading, re.I) else ""
+    return (
+        result.chunk.programme,
+        result.chunk.admission_year,
+        route,
+        tuple(sorted(result.chunk.topics)),
+        result.chunk.year_conflict,
+    )
+
+
 def _duplicate_evidence(left: SearchResult, right: SearchResult) -> bool:
+    if _scope_signature(left) != _scope_signature(right):
+        return False
     left_text, right_text = _normalized_evidence(left), _normalized_evidence(right)
     if not left_text or not right_text:
         return False

@@ -63,6 +63,7 @@ class QueryScope:
     use_context: bool
     reason: str
     programme: str
+    programmes: tuple[str, ...]
     admission_year: int | None
     qualification_year: int | None
     year_sensitive: bool
@@ -74,6 +75,7 @@ class QueryScope:
     fee_components: tuple[str, ...]
     document_items: tuple[str, ...]
     underspecified: bool
+    inherited_slots: tuple[str, ...]
 
 
 def topic_in(text: str) -> str:
@@ -81,6 +83,8 @@ def topic_in(text: str) -> str:
     if re.search(r"\b(mattress|pillow|bucket|mug|room items?|basic\b.{0,20}\bitems?)\b", low) and re.search(r"\b(hostel|room|cost|price|purchase)\b", low):
         return "facilities"
     if programme_in(text) and re.search(r"\b(programme|program|degree|curriculum|fields?|areas?|topics?|later semesters?|higher semesters?)\b", low):
+        return "programmes"
+    if programme_in(text) and not re.search(r"\b(fee|tuition|cost|admission|apply|eligib|document|reporting)\b", low):
         return "programmes"
     if re.search(r"\b(e-?m\.?\s*tech|ph\.?\s*d)\b", low) and re.search(r"\b(subject|group|discipline|field|area|programme|program)\w*\b", low):
         return "programmes"
@@ -127,26 +131,35 @@ def route_in(text: str) -> str:
     return ""
 
 
-def programme_in(text: str) -> str:
+def programmes_in(text: str) -> tuple[str, ...]:
+    """Return every explicitly named programme in textual order.
+
+    The legacy application uses ``programme`` in several places, but comparisons
+    must not lose their second (or later) target before eligibility filtering.
+    """
     low = text.lower()
-    if re.search(r"\be-?m\.?\s*tech\b", low):
-        return "e-M.Tech"
-    if re.search(r"\bph\.?\s*d\b|\bdoctoral\b", low):
-        return "PhD"
-    # Specific specializations must win over a generic CSE mention.
-    if re.search(r"\b(cyber security|cybersecurity|digital forensics)\b", low):
-        return "B.Tech Cyber Security"
-    if re.search(r"\b(ai\s*(?:&|and)\s*(?:data science|ds)|artificial intelligence and data science)\b", low):
-        return "B.Tech AI and Data Science"
-    if re.search(r"\b(mathematics and computing|mnc)\b", low):
-        return "B.Tech Mathematics and Computing"
-    if re.search(r"\b(ece|electronics and communication|electronics (?:degree|programme|program))\b", low):
-        return "B.Tech ECE"
-    if re.search(r"\b(cse|computer science and engineering)\b", low):
-        return "B.Tech CSE"
-    if re.search(r"\b(b\.?tech|bachelor of technology|ug|undergraduate)\b", low):
-        return "B.Tech"
-    return ""
+    patterns = (
+        ("e-M.Tech", r"\be-?m\.?\s*tech\b"),
+        ("PhD", r"\bph\.?\s*d\b|\bdoctoral\b"),
+        ("B.Tech Cyber Security", r"\b(cyber security|cybersecurity|digital forensics)\b"),
+        ("B.Tech AI and Data Science", r"\b(ai\s*(?:&|and)\s*(?:data science|ds)|artificial intelligence and data science)\b"),
+        ("B.Tech Mathematics and Computing", r"\b(mathematics and computing|mnc)\b"),
+        ("B.Tech ECE", r"\b(ece|electronics and communication|electronics (?:degree|programme|program))\b"),
+        ("B.Tech CSE", r"\b(cse|computer science and engineering)\b"),
+    )
+    matches = [(match.start(), label) for label, pattern in patterns if (match := re.search(pattern, low))]
+    specific_btech = any(label.startswith("B.Tech ") for _, label in matches)
+    if not specific_btech and re.search(r"\b(b\.?tech|bachelor of technology|ug|undergraduate)\b", low):
+        generic = re.search(r"\b(b\.?tech|bachelor of technology|ug|undergraduate)\b", low)
+        if generic:
+            matches.append((generic.start(), "B.Tech"))
+    ordered = [label for _, label in sorted(matches) if label]
+    return tuple(dict.fromkeys(ordered))
+
+
+def programme_in(text: str) -> str:
+    """Compatibility wrapper for singular callers."""
+    return next(iter(programmes_in(text)), "")
 
 
 def query_terms(text: str) -> set[str]:
@@ -207,6 +220,23 @@ def fee_components_in(text: str) -> tuple[str, ...]:
     return tuple(name for name, pattern in FEE_COMPONENT_PATTERNS if re.search(pattern, text, re.I))
 
 
+def implied_tuition_fee(text: str, topic: str, semesters: tuple[int, ...], components: tuple[str, ...]) -> bool:
+    """Resolve an unqualified per-semester fee to the labelled tuition row.
+
+    The fee table has several rows that carry semester columns (including
+    one-time charges whose later-semester cell is ``-``).  A question phrased
+    as "the fee for the second semester" therefore needs a conservative,
+    explicit default rather than treating every row as an interchangeable fee.
+    Requests that name a component keep that component unchanged.
+    """
+    return bool(
+        topic == "fees"
+        and semesters
+        and not components
+        and re.search(r"\b(?:the\s+)?fee\b[^?.!]{0,60}\b(?:for|in)\b[^?.!]{0,60}\bsemester\b", text, re.I)
+    )
+
+
 def document_items_in(text: str) -> tuple[str, ...]:
     return tuple(name for name, pattern in DOCUMENT_ITEM_PATTERNS if re.search(pattern, text, re.I))
 
@@ -260,6 +290,10 @@ def intent_in(text: str, topic: str, programme: str) -> str:
         return "portal_confirmation"
     if topic == "documents":
         return "document_item" if document_items_in(text) else "document_checklist"
+    if topic == "admissions" and re.search(r"\b(eligib(?:ility|le)?|qualif(?:y|ication)|minimum requirement)\b", low):
+        return "eligibility"
+    if topic == "admissions" and re.search(r"\b(deadline|last date|closing date|apply by|application closes?)\b", low):
+        return "admission_deadline"
     if topic == "admissions" and re.search(r"\b(report|reporting|show up|in person)\b", low):
         return "reporting_schedule"
     if topic == "admissions" and re.search(r"\borientation\b", low):
@@ -299,7 +333,7 @@ def intent_in(text: str, topic: str, programme: str) -> str:
 
 def resolve_scope(message: str, conversation: list[dict[str, str]]) -> QueryScope:
     previous = next((item["content"] for item in reversed(conversation[-6:]) if item.get("role") == "user" and item.get("content", "").strip()), "")
-    current_programme = programme_in(message)
+    current_programmes = programmes_in(message)
     current_qualification_year = qualification_year_in(message)
     current_years = [int(year) for year in YEAR_RE.findall(message)]
     current_year = next((year for year in current_years if year != current_qualification_year), None)
@@ -309,24 +343,51 @@ def resolve_scope(message: str, conversation: list[dict[str, str]]) -> QueryScop
     continuation = continuation or bool(re.search(r"\b(show up|in person|next semester|later semesters?)\b", message, re.I))
     underspecified_follow_up = continuation and (not current_topic_name or len(query_terms(message)) <= 5)
     # Explicit programme/year changes are new scopes, even in a short message.
-    programme_change = bool(current_programme and programme_in(previous) and current_programme != programme_in(previous))
+    previous_programmes = programmes_in(previous)
+    programme_change = bool(current_programmes and previous_programmes and current_programmes != previous_programmes)
     previous_admission_years = [int(year) for year in YEAR_RE.findall(previous) if int(year) != qualification_year_in(previous)]
     previous_year = previous_admission_years[0] if previous_admission_years else None
     year_change = bool(current_year and previous_year and current_year != previous_year)
     use_context = bool(previous and underspecified_follow_up and not (programme_change or year_change))
     effective = f"{previous}\nCURRENT QUESTION: {message.strip()}" if use_context else message.strip()
-    programme = current_programme or (programme_in(previous) if use_context else "")
+    inherited_slots: list[str] = []
+    programmes = current_programmes or (previous_programmes if use_context else ())
+    if use_context and not current_programmes and programmes:
+        inherited_slots.append("programmes")
+    programme = next(iter(programmes), "")
     year = current_year or (previous_year if use_context else None)
+    if use_context and not current_year and year is not None:
+        inherited_slots.append("admission_year")
     qualification_year = current_qualification_year or (qualification_year_in(previous) if use_context else None)
     year_sensitive = bool(year or re.search(r"\b(fee|cost|admission|apply|eligib|deadline|date|schedule|documents?|reporting|payment)\w*\b", effective, re.I))
     reason = "Follow-up inherits the previous user question." if use_context else "Standalone question or explicit new scope."
-    route = route_in(message) or (route_in(previous) if use_context else "")
+    current_route = route_in(message)
+    route = current_route or (route_in(previous) if use_context else "")
+    if use_context and not current_route and route:
+        inherited_slots.append("admission_route")
     topic = current_topic_name or (topic_in(previous) if use_context else "")
     intent = intent_in(effective, topic, programme)
-    items = document_items_in(message)
+    if topic == "programmes" and len(programmes) > 1:
+        intent = "programme_comparison"
+    current_items = document_items_in(message)
+    items = current_items or (document_items_in(previous) if use_context else ())
+    if use_context and not current_items and items:
+        inherited_slots.append("document_items")
     requires_route = (intent == "document_checklist" or bool(re.search(r"\b(online|payment process|remaining fee|where to pay)\b", message, re.I) and topic == "fees"))
-    semesters = semester_numbers(message, previous if use_context else "")
-    fee_components = fee_components_in(effective if use_context else message)
+    current_semesters = semester_numbers(message, previous if use_context else "")
+    semesters = current_semesters or (semester_numbers(previous) if use_context else ())
+    if use_context and not current_semesters and semesters:
+        inherited_slots.append("semesters")
+    current_fee_components = fee_components_in(message)
+    fee_components = current_fee_components or (fee_components_in(previous) if use_context else ())
+    if implied_tuition_fee(message, topic, current_semesters, current_fee_components):
+        # The official table labels the recurring semester charge "Tuition Fee".
+        # Do not apply this default to named components or vague fee questions.
+        current_fee_components = ("tuition fee",)
+        fee_components = current_fee_components
+        intent = "fee_component"
+    if use_context and not current_fee_components and fee_components:
+        inherited_slots.append("fee_components")
     standalone_underspecified = not use_context and not topic and not programme and len(query_terms(message)) <= 4
     return QueryScope(
         effective,
@@ -334,6 +395,7 @@ def resolve_scope(message: str, conversation: list[dict[str, str]]) -> QueryScop
         use_context,
         reason,
         programme,
+        programmes,
         year,
         qualification_year,
         year_sensitive,
@@ -343,8 +405,9 @@ def resolve_scope(message: str, conversation: list[dict[str, str]]) -> QueryScop
         requires_route,
         semesters,
         fee_components,
-        items or (document_items_in(previous) if use_context else ()),
+        items,
         standalone_underspecified,
+        tuple(inherited_slots),
     )
 
 
@@ -389,10 +452,21 @@ def eligible(chunk: dict, scope: QueryScope) -> bool:
     elif scope.topic and chunk_topics and scope.topic not in chunk_topics:
         return False
     source_programme = str(chunk.get("programme") or "")
-    if scope.programme and source_programme and source_programme != scope.programme:
-        if not (source_programme == "B.Tech" and scope.programme.startswith("B.Tech")):
-            if not (scope.programme == "B.Tech" and source_programme.startswith("B.Tech")):
-                return False
+    requested_programmes = scope.programmes or ((scope.programme,) if scope.programme else ())
+    # A comparison has a closed entity set. Generic admission-overview chunks
+    # cannot stand in for either requested programme merely because they happen
+    # to mention both names in passing.
+    if scope.intent == "programme_comparison":
+        return source_programme in requested_programmes
+    if requested_programmes and source_programme:
+        compatible = any(
+            source_programme == requested
+            or (source_programme == "B.Tech" and requested.startswith("B.Tech"))
+            or (requested == "B.Tech" and source_programme.startswith("B.Tech"))
+            for requested in requested_programmes
+        )
+        if not compatible:
+            return False
     source_year = chunk.get("admission_year")
     if scope.admission_year and source_year and int(source_year) != scope.admission_year:
         return False

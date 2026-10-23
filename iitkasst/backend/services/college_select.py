@@ -66,6 +66,15 @@ def supports_request(scope: QueryScope, row: dict) -> bool:
     intent = scope.intent
     if scope.underspecified:
         return False
+    topics = set(row.get("topics") or [])
+    if intent == "eligibility":
+        return "admissions" in topics and bool(re.search(r"\b(eligib(?:ility|le)?|qualif(?:y|ication)|minimum requirement)\b", text, re.I))
+    if intent == "admission_deadline":
+        return "admissions" in topics and bool(re.search(r"\b(deadline|last date|closing date|apply by|application closes?)\b", text, re.I)) and bool(re.search(r"\b\d{1,2}[/-](?:\d{1,2}|[A-Za-z]{3,9})[/-]?\d{0,4}\b|\b\d{1,2}\s+[A-Za-z]+\s+20\d{2}\b", text))
+    if intent == "admission_process":
+        return "admissions" in topics and bool(re.search(r"\b(JEE|JoSAA|CSAB|counselling|admission procedure|apply|portal)\b", text, re.I))
+    if intent == "admission_data_entry":
+        return topics.intersection({"admissions", "portal"}) and bool(re.search(r"\b(data entry|enter|submit|portal)\b", text, re.I))
     if intent == "portal_steps":
         return bool(re.search(r"\bmandatory\b.*\b7 steps\b|\b7 steps\b.*\bmandatory\b", text, re.I))
     if intent == "portal_confirmation":
@@ -82,6 +91,22 @@ def supports_request(scope: QueryScope, row: dict) -> bool:
         return not scope.semesters or any(SEMESTER_LABELS[number] in text for number in scope.semesters)
     if intent == "document_item":
         return any(_document_item_supported(item, text) for item in scope.document_items)
+    if intent == "document_checklist":
+        return "documents" in topics and bool(re.search(r"\b(document|certificate|proof|marksheet|photograph|passport)\b", text, re.I))
+    if intent == "programme_comparison":
+        return row.get("programme") in set(scope.programmes) and "admission" not in str(row.get("section", "")).lower()
+    if intent == "programme_description":
+        return "programmes" in topics and "admission" not in str(row.get("section", "")).lower()
+    if intent == "programmes_list":
+        return "programmes" in topics
+    if intent == "departments_list":
+        return "departments" in topics and "available departments" in str(row.get("section", "")).lower()
+    if intent == "fees":
+        return bool(re.search(r"\b(fee|tuition|charge|deposit|amount|Rs\.?|₹)\b", text, re.I))
+    if intent == "scholarships":
+        return "scholarships" in topics and "scholarship" in text
+    if intent == "facilities":
+        return "facilities" in topics
     if intent == "programme_fields":
         return bool(re.search(r"(?:•|\bfields?\b|\bareas?\b|\bspans across\b|\bcurriculum\b|\bhigher semesters?\b|\bspecialized courses?\b)", text, re.I))
     if intent == "scholarship_details":
@@ -106,7 +131,8 @@ def supports_request(scope: QueryScope, row: dict) -> bool:
         return all(item in text for item in ("mattress", "pillow", "bucket", "mug")) and bool(re.search(r"\b2,?650\b", text))
     if intent == "hostel_transport":
         return bool(re.search(r"\b(conveyance|transport)\b", text, re.I) and re.search(r"\bfree of cost\b", text, re.I))
-    return True
+    # Official text is not automatically evidence for an unmodelled task.
+    return False
 
 
 def evidence_set_sufficient(scope: QueryScope, rows: list[dict]) -> bool:
@@ -119,7 +145,17 @@ def evidence_set_sufficient(scope: QueryScope, rows: list[dict]) -> bool:
         return all(_document_item_supported(item, combined) for item in scope.document_items)
     if scope.intent == "portal_confirmation":
         return "confirming successful submission" in combined and "application report" in combined
-    return True
+    if scope.intent == "programme_comparison":
+        requested = set(scope.programmes)
+        return bool(requested) and requested.issubset({str(row.get("programme") or "") for row in rows})
+    return scope.intent in {
+        "admission_process", "admission_data_entry", "admission_deadline", "eligibility", "reporting_schedule",
+        "orientation", "class_commencement", "programme_description", "programmes_list", "programme_fields",
+        "departments_list", "fees", "scholarships", "scholarship_details", "scholarship_support",
+        "scholarship_authorities", "placement_recruiters", "placement_statistics", "department_head",
+        "laboratory_location", "hotel_details", "first_year_housing", "hostel_items", "hostel_transport",
+        "document_checklist", "fee_total", "fee_component", "fee_comparison",
+    }
 
 
 def features(query: str, row: dict, max_bm25: float = 1.0) -> list[float]:
@@ -140,7 +176,7 @@ def select_evidence(scope: QueryScope, candidates: list[dict], reranker: dict | 
     eligible_rows = [row for row in candidates if eligible(row, scope) and supports_request(scope, row)]
     if not eligible_rows:
         return []
-    if scope.topic == "programmes" and scope.programme.startswith("B.Tech "):
+    if scope.topic == "programmes" and len(scope.programmes) <= 1 and scope.programme.startswith("B.Tech "):
         has_description = any(
             row.get("programme") == scope.programme
             and "admission" not in str(row.get("section", "")).lower()
@@ -166,6 +202,10 @@ def select_evidence(scope: QueryScope, candidates: list[dict], reranker: dict | 
             ]
         if list_rows:
             eligible_rows = list_rows
+    if scope.intent == "programme_comparison":
+        grouped = {programme: [row for row in eligible_rows if row.get("programme") == programme] for programme in scope.programmes}
+        if any(not rows for rows in grouped.values()):
+            return []
     if scope.fee_components:
         component_rows = [
             row for row in eligible_rows

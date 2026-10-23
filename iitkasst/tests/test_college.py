@@ -158,6 +158,31 @@ def test_caution_deposit_does_not_answer_with_tuition():
     assert not refused and "14,000" in answer and "1,59,800" not in answer
 
 
+def test_unqualified_semester_fee_defaults_to_labelled_tuition_row():
+    scope = resolve_scope("What is the fee for the second semester?", [])
+    tuition = _passage(
+        "tuition",
+        "Tuition Fee; First Semester: 1,59,800/-; Second Semester: 1,59,800/-",
+        "Fee Structure",
+        .03,
+        "fees",
+    )
+    deposit = _passage(
+        "deposit",
+        "Caution Deposit (One time Fee); First Semester: 14,000/-; Second Semester: -",
+        "Fee Structure",
+        .05,
+        "fees",
+    )
+    assert scope.intent == "fee_component"
+    assert scope.fee_components == ("tuition fee",)
+    rows = select_evidence(scope, [deposit, tuition])
+    assert [row["chunk_id"] for row in rows] == ["tuition"]
+    answer, refused = grounded_answer(scope, rows)
+    assert not refused and "Tuition Fee" in answer and "Second Semester: 1,59,800" in answer
+    assert "Caution Deposit" not in answer
+
+
 def test_canonical_fee_row_excludes_broad_multi_charge_summary():
     scope = resolve_scope("Is a caution deposit charged in the first semester?", [])
     canonical = _passage("deposit", "Caution Deposit (One time Fee); First Semester: 14,000/-", "Fee Structure", .03, "fees")
